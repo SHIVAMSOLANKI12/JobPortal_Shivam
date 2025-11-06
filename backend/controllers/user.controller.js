@@ -7,42 +7,73 @@ import cloudinary from "../utils/cloudinary.js";
 export const register = async (req, res) => {
   try {
     const { fullname, email, phoneNumber, password, role } = req.body;
+
+    // Step 1: Basic validation
     if (!fullname || !email || !phoneNumber || !password || !role) {
       return res.status(400).json({
-        message: "Something is missing",
         success: false,
-      });
-    };
-    const file = req.file;
-    const fileUri = getDataUri(file);
-    const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
-
-    const user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({
-        message: "User already exist with this email.",
-        success: false,
+        message: "All fields are required.",
       });
     }
+
+    // Step 2: Check for existing user before uploading image
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "User already exists with this email.",
+      });
+    }
+
+    // Step 3: Handle optional file upload
+    let profilePhotoUrl = "";
+    if (req.file) {
+      try {
+        const fileUri = getDataUri(req.file);
+        const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+        profilePhotoUrl = cloudResponse.secure_url;
+      } catch (uploadError) {
+        console.error("Cloudinary upload failed:", uploadError);
+        return res.status(500).json({
+          success: false,
+          message: "Image upload failed. Please try again.",
+        });
+      }
+    }
+
+    // Step 4: Hash password securely
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await User.create({
+    // Step 5: Create new user
+    const newUser = await User.create({
       fullname,
       email,
       phoneNumber,
       password: hashedPassword,
       role,
-      profile:{
-        profilePhoto:cloudResponse.secure_url,
-      }
+      profile: {
+        profilePhoto: profilePhotoUrl,
+      },
     });
 
+    // Step 6: Respond success
     return res.status(201).json({
-      message: "Account created succesfully",
       success: true,
+      message: "Account created successfully.",
+      user: {
+        id: newUser._id,
+        fullname: newUser.fullname,
+        email: newUser.email,
+        role: newUser.role,
+      },
     });
   } catch (error) {
-    console.log(error);
+    console.error("Register error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error. Please try again later.",
+      error: error.message,
+    });
   }
 };
 
