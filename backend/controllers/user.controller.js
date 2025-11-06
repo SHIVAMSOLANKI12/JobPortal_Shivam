@@ -29,9 +29,13 @@ export const register = async (req, res) => {
     let profilePhotoUrl = "";
     if (req.file) {
       try {
+        console.log(1)
         const fileUri = getDataUri(req.file);
+        console.log(2)
         const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+        console.log(3)
         profilePhotoUrl = cloudResponse.secure_url;
+        console.log(4);
       } catch (uploadError) {
         console.error("Cloudinary upload failed:", uploadError);
         return res.status(500).json({
